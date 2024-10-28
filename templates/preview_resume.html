@@ -1,0 +1,6 @@
+<h2>Adapted Resume Preview</h2>
+<div>{{ adapted_resume | safe }}</div>
+<form action="{{ url_for('download_adapted_resume', resume_id=resume.id) }}" method="POST">
+    <button type="submit">Download Adapted Resume</button>
+</form>
+<a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
