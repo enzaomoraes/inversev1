@@ -2,15 +2,16 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Meus Currículos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <title>My Resumes</title>
 </head>
 <body>
-    <h1>Meus Currículos</h1>
+    <h1>My Resumes</h1>
     <table>
         <tr>
-            <th>Nome</th>
-            <th>Adaptado</th>
-            <th>Ações</th>
+            <th>Name</th>
+            <th>Adapted</th>
+            <th>Actions</th>
         </tr>
         {% for resume in resumes %}
         <tr>
@@ -18,11 +19,11 @@
             <td>{{ resume.adapted_content is not none }}</td>
             <td>
                 {% if resume.adapted_content %}
-                <a href="{{ url_for('download_adapted_resume', resume_id=resume.id) }}">Baixar Adaptado</a>
+                <a href="{{ url_for('download_adapted_resume', resume_id=resume.id) }}">Download Adapted</a>
                 {% endif %}
-                <a href="{{ url_for('edit_resume', resume_id=resume.id) }}">Editar</a>
+                <a href="{{ url_for('edit_resume', resume_id=resume.id) }}">Edit</a>
                 <form action="{{ url_for('delete_resume', resume_id=resume.id) }}" method="POST" style="display:inline;">
-                    <button type="submit">Excluir</button>
+                    <button type="submit" class="btn">Delete</button>
                 </form>
             </td>
         </tr>
