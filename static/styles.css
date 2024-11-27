@@ -32,11 +32,11 @@ th {
 
 .btn {
     display: inline-block; /* Permite a personalização do botão */
-    padding: 10px 20px; /* Espaçamento interno para botões */
-    background-color: #007bff; /* Azul */
-    color: white;
-    border: 1px solid #007bff; /* Bordas azuis */
-    border-radius: 5px; /* Bordas levemente arredondadas */
+    padding: 3px 7px; /* Espaçamento interno para botões */
+    background-color: lightgrey; /* Azul */
+    color: black;
+    border: 1px solid black; /* Bordas azuis */
+    border-radius: 3px; /* Bordas levemente arredondadas */
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s, transform 0.3s; /* Efeitos de transição */
     font-size: 16px; /* Tamanho da fonte dos botões */
