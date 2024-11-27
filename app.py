@@ -17,7 +17,7 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'vitticalvo'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'database.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 
 login_manager = LoginManager()
