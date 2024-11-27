@@ -2,7 +2,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.db
-instance/
-uploads/
 *.pdf
 .env
