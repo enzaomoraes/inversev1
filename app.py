@@ -11,7 +11,7 @@ from fpdf import FPDF
 from sqlalchemy import inspect
 from unidecode import unidecode
 import re
-from pdf2image import convert_from_path
+
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
@@ -48,12 +48,12 @@ class Resume(db.Model):
     adapted_content = db.Column(db.Text)  # A coluna deve estar aqui
     adapted_filename = db.Column(db.Text)
     
+if not os.path.exists('database.db'):
+    with app.app_context():
+        db.create_all()  # Cria as tabelas novamente
     
-with app.app_context():
-    db.create_all()  # Cria as tabelas novamente
-    
-    inspector = inspect(db.engine)
-    print("Tabelas criadas:", inspector.get_table_names())
+        inspector = inspect(db.engine)
+        print("Tabelas criadas:", inspector.get_table_names())
     
 
     # Definindo uma pasta para salvar os arquivos
