@@ -12,8 +12,7 @@ from sqlalchemy import inspect
 from unidecode import unidecode
 import re
 
-
-openai.api_key = os.getenv('OPENAI_API_KEY')
+openai.api_key = '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'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'vitticalvo'
@@ -47,6 +46,18 @@ class Resume(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     adapted_content = db.Column(db.Text)  # A coluna deve estar aqui
     adapted_filename = db.Column(db.Text)
+    
+class ResumeAdaptation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    resume_id = db.Column(db.Integer, db.ForeignKey('resume.id'))
+    job_description = db.Column(db.Text)
+    company_name = db.Column(db.String(150))
+    adapted_experience = db.Column(db.Text)
+    missing_info = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    resume = db.relationship('Resume', backref=db.backref('adaptations', lazy=True))
+
     
 if not os.path.exists('database.db'):
     with app.app_context():
@@ -145,7 +156,7 @@ def logout():
 @login_required
 def upload_resume():
     if request.method == 'POST':
-        file = request.files['file']
+        file = request.files.get('file')  # Alterado de ['file'] para .get('file') para evitar KeyError
         resume_name = request.form['name']
         
         if file and allowed_file(file.filename):
@@ -426,34 +437,36 @@ def add_skills_section(pdf, skills_content):
         pdf.set_font("Arial", "B", size=11)
         pdf.multi_cell(0, 6, unidecode(skill.strip()))  # Reduced line height
     pdf.ln(2)  # Reduced space between skill entries
-
-    
-            
-
-
-@app.route('/adapt_resume/<int:resume_id>', methods=['GET', 'POST'])
+     
+@app.route('/adapt_resume/<string:resume_name>', methods=['GET', 'POST'])
 @login_required
-def adapt_resume(resume_id):
-    resume = Resume.query.get_or_404(resume_id)
-    if resume.user_id != current_user.id:
-        flash("Você não tem permissão para adaptar este currículo.")
-        return redirect(url_for('dashboard'))
+def adapt_resume_by_name(resume_name):
+    # Buscar o currículo pelo nome no banco de dados
+    resume = Resume.query.filter_by(name=resume_name, user_id=current_user.id).first_or_404()
 
     if request.method == 'POST':
         job_description = request.form['job_description']
+        company_name = request.form['company_name']
 
-        # Extrai as seções do currículo original
+        # Atualizar as informações
+        resume.job_description = job_description
+        resume.company_name = company_name
+        db.session.commit()
+
+        # Extrair as seções do currículo original (do arquivo PDF)
         sections = extract_all_sections(os.path.join(app.config['UPLOAD_FOLDER'], resume.filename))
-        
+
+        # Extrair o texto completo do PDF
         pdf_text = ""
         with open(os.path.join(app.config['UPLOAD_FOLDER'], resume.filename), 'rb') as file:
             reader = PdfReader(file)
             for page in reader.pages:
-                pdf_text += page.extract_text()  # Coleta todo o texto
+                pdf_text += page.extract_text()
 
+        # Extrair informações pessoais
         personal_info = extract_personal_info(pdf_text)
 
-        # Prompt para o ChatGPT
+        # Preparar o prompt para a API do ChatGPT
         prompt_script = (
             f"Please tailor my recent experience to the following job description:\n\n"
             f"{job_description}\n\n"
@@ -465,76 +478,94 @@ def adapt_resume(resume_id):
             f"Please don't write any comments or anything else, just the sections of the tailored resume. "
             f"Use the other sections provided below and integrate them into the adapted resume.\n\n"
             f"Professional Experience\n{sections['Professional Experience']}\n\n"
+            f"Output format: Please return two distinct sections in your response:\n"
+            f"1. The tailored experience for the job (adapted experience).\n"
+            f"2. The missing information for the role (what is missing in my resume for this job).\n\n"
+            f"Please make sure that these two sections are clearly separated."
         )
 
-        # Chamada para a API do ChatGPT
+        # Chamada à API do ChatGPT
         response = openai.ChatCompletion.create(
             model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a resume adaptation assistant."},
-                {"role": "user", "content": prompt_script}
-            ],
+            messages=[{"role": "system", "content": "You are a resume adaptation assistant."},
+                      {"role": "user", "content": prompt_script}],
             max_tokens=1500,
             temperature=0.7,
         )
 
-        # Extrai o conteúdo adaptado da resposta da API
+        # Extrair o conteúdo adaptado da resposta da API
         adapted_content = response['choices'][0]['message']['content']
 
-        # Salvar o conteúdo adaptado na sessão
-        session['adapted_resume_text'] = adapted_content
+        # Usar expressões regulares para separar as duas partes da resposta
+        pattern = r"1\. The tailored experience for the job \(adapted experience\)\.(.*?)2\. The missing information for the role \(what is missing in my resume for this job\)\.(.*)"
+        match = re.search(pattern, adapted_content, re.DOTALL)
 
-        # Criação do PDF com formatação por seção conforme solicitado
+        if match:
+            adapted_experience = match.group(1).strip()
+            missing_info = match.group(2).strip()
+
+            # Salvar as partes adaptadas na sessão
+            session['adapted_experience'] = adapted_experience
+            session['missing_info'] = missing_info
+        else:
+            session['adapted_experience'] = "Error: Could not parse the adapted experience."
+            session['missing_info'] = "Error: Could not parse the missing information."
+
+        # Criar o PDF com as seções formatadas
         adapted_filename = f"adapted_resume_{resume.id}_{current_user.id}.pdf"
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], adapted_filename)
 
-        # Create PDF
+        # Criando o PDF
         pdf = FPDF()
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
 
-# Add Personal Info Section with specific styling
+        # Seção de informações pessoais
         pdf.set_font("Arial", "B", size=21)
         pdf.cell(0, 10, unidecode(personal_info['name']), ln=True)
         pdf.set_font("Arial", "B", size=13.5)
         pdf.cell(0, 8, "(career)", ln=True)
 
-# Add email, phone, and LinkedIn on the same line
         pdf.set_font("Arial", size=10)
         contact_info = unidecode(f"{personal_info['email']} | {personal_info['phone']} |")
         pdf.cell(pdf.get_string_width(contact_info), 8, contact_info, ln=False)
 
-# Add clickable LinkedIn link in the same line
-        pdf.set_text_color(0, 0, 255)  # Set link color to blue
+        # Link do LinkedIn
+        pdf.set_text_color(0, 0, 255)
         pdf.write(8, unidecode(personal_info['linkedin']), personal_info['linkedin'])
-        pdf.set_text_color(0, 0, 0)  # Reset text color to black
-        pdf.ln(6)  # Move to the next line
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(6)
 
-# Add address on the next line
         pdf.cell(0, 8, unidecode(f"Brazil {personal_info['address']}"), ln=True)
-        pdf.ln(2)  # Space after header
+        pdf.ln(2)
 
-
-
-
-        # Add formatted sections
+        # Adicionar seções formatadas
         add_section(pdf, "SUMMARY", sections["Summary"], title_font_size=13, content_font_size=10, is_bold=True)
-        add_professional_experience_section(pdf, adapted_content)  # Use o conteúdo adaptado
-        add_education_section(pdf, sections["Education"])  # Education com formatação específica
-        add_languages_section(pdf, sections["Languages"])  # Languages com formatação específica
-        add_skills_section(pdf, sections["Skills"])  # Skills com formatação específica
+        add_professional_experience_section(pdf, adapted_experience)
+        add_education_section(pdf, sections["Education"])
+        add_languages_section(pdf, sections["Languages"])
+        add_skills_section(pdf, sections["Skills"])
 
-        # Save the final PDF
+        # Salvar o PDF gerado
         pdf.output(pdf_path)
 
-        # Armazena no banco de dados
-        resume.adapted_content = adapted_content
-        resume.adapted_filename = adapted_filename
+        # Registrar a adaptação no banco de dados
+        adaptation = ResumeAdaptation(
+            resume_id=resume.id,
+            job_description=job_description,
+            company_name=company_name,
+            adapted_experience=adapted_experience,
+            missing_info=missing_info,
+            adapted_filename=adapted_filename
+        )
+        db.session.add(adaptation)
         db.session.commit()
+        
+        # Redirecionar para a página de preview
+        return redirect(url_for('preview_resume', adaptation_id=adaptation.id))
 
-        return render_template('preview_resume.html', adapted_resume=adapted_content, resume=resume)
-
-    return render_template('adapt_resume.html', resume=resume)
+    # Para requisições GET, redirecionar para a dashboard
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/download_adapted_resume/<int:resume_id>', methods=['POST'])
@@ -580,6 +611,33 @@ def download_adapted_resume_dashboard(resume_id):
 def view_resumes():
     resumes = Resume.query.filter_by(user_id=current_user.id).all()
     return render_template('view_resumes.html', resumes=resumes)
+
+@app.route('/show_missing_info/<int:resume_id>/<int:adaptation_id>', methods=['GET'])
+@login_required
+def show_missing_info(resume_id, adaptation_id):
+    resume = Resume.query.get_or_404(resume_id)
+    adaptation = ResumeAdaptation.query.get_or_404(adaptation_id)
+    
+    # Passa as informações para o template
+    return render_template('show_missing_info.html', 
+                           resume_name=resume.name,
+                           company_name=adaptation.company_name,
+                           job_description=adaptation.job_description,
+                           adapted_experience=adaptation.adapted_experience,
+                           missing_info=adaptation.missing_info)
+    
+@app.route('/preview_resume/<int:adaptation_id>')
+@login_required
+def preview_resume(adaptation_id):
+    adaptation = ResumeAdaptation.query.get_or_404(adaptation_id)
+
+    # Verifica se a adaptação pertence ao usuário
+    if adaptation.resume.user_id != current_user.id:
+        flash("Você não tem permissão para visualizar esta adaptação.")
+        return redirect(url_for('dashboard'))
+
+    return render_template('preview_resume.html', adaptation=adaptation)
+
 
 
 if __name__ == '__main__':

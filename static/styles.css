@@ -1,5 +1,6 @@
+/* Estilo geral */
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Fonte moderna e limpa */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
     padding: 20px;
     background-color: #f0f0f0; /* Cinza claro */
@@ -11,32 +12,39 @@ h1, h2 {
     margin-bottom: 10px;
 }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 20px 0;
+/* Flexbox layout para dividir a página em duas colunas */
+.container {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px;
 }
 
-table, th, td {
-    border: 1px solid #000; /* Bordas pretas */
+/* Estilo para a lista de currículos */
+.resume-list {
+    width: 45%;
+    padding: 14px;
+    border: 1px solid black;
+    border-radius: 5px;
+    background-color: #f9f9f9;
 }
 
-th, td {
-    padding: 12px;
-    text-align: left;
+/* Estilo para o formulário de adaptação */
+.adapt-resume {
+    width: 45%;
+    padding: 14px;
+    border: 1px solid black;
+    border-radius: 5px;
+    background-color: #f9f9f9;
 }
 
-th {
-    background-color: #f9f9f9; /* Fundo leve para cabeçalhos */
-}
-
+/* Botões */
 .btn {
     display: inline-block; /* Permite a personalização do botão */
     padding: 3px 7px; /* Espaçamento interno para botões */
-    background-color: lightgrey; /* Azul */
+    background-color: lightgray; /* Azul */
     color: black;
     border: 1px solid black; /* Bordas azuis */
-    border-radius: 3px; /* Bordas levemente arredondadas */
+    border-radius: 5px; /* Bordas levemente arredondadas */
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s, transform 0.3s; /* Efeitos de transição */
     font-size: 16px; /* Tamanho da fonte dos botões */
@@ -48,6 +56,11 @@ th {
 .btn:hover {
     background-color: #0056b3; /* Azul escuro ao passar o mouse */
     transform: scale(1.05); /* Aumenta ligeiramente o botão */
+}
+
+/* Estilo para o título do formulário */
+.form-title {
+    margin-bottom: 10px;
 }
 
 form {

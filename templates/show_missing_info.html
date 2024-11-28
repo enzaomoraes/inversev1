@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <title>Missing Information for {{ resume_name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            font-size: 20px;
+            margin-top: 20px;
+            color: #333;
+        }
+        p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #555;
+        }
+        pre {
+            background-color: #e8e8e8;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        a.btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        a.btn:hover {
+            background-color: #0056b3;
+        }
+        .content {
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Missing Information for Job Application - {{ resume_name }}</h1>
+    </header>
+    <div class="content">
+        <section>
+            <h2>Job Description - {{ company_name }}</h2>
+            <p>{{ job_description }}</p>
+        </section>
+
+        <section>
+            <h2>Adapted Experience</h2>
+            <pre>{{ adapted_experience }}</pre>
+        </section>
+
+        <section>
+            <h2>Missing Information</h2>
+            <pre>{{ missing_info }}</pre>
+        </section>
+
+        <section>
+            <a href="{{ url_for('dashboard') }}" class="btn">Back to Dashboard</a>
+        </section>
+    </div>
+</body>
+</html>
+
