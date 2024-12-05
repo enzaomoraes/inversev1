@@ -355,7 +355,7 @@ def add_professional_experience_section(pdf, experience_content):
     first_line_after_date = True  # Flag para garantir que a primeira linha após uma data tenha um ponto de bala
 
     # Caminho para a imagem do ponto de bala
-    bullet_image_path = 'C:/inverserecruiter/uploads/bullet.png'  # Substitua com o caminho correto
+    bullet_image_path = 'static/bullet.png'  # Substitua com o caminho correto
     bullet_image_width = 4  # Largura da imagem do ponto de bala
     bullet_image_height = 4  # Altura da imagem do ponto de bala
     offset_x = 6  # Ajuste esse valor para mover as linhas sem pontos de bala para a direita
