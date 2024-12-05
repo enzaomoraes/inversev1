@@ -45,7 +45,6 @@ class Resume(db.Model):
     upload_date = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     adapted_content = db.Column(db.Text)  # A coluna deve estar aqui
-    adapted_filename = db.Column(db.Text)
     
 class ResumeAdaptation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -53,8 +52,9 @@ class ResumeAdaptation(db.Model):
     job_description = db.Column(db.Text)
     company_name = db.Column(db.String(150))
     adapted_experience = db.Column(db.Text)
-    missing_info = db.Column(db.Text)
+    #missing_info = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    adapted_filename = db.Column(db.Text)
     
     resume = db.relationship('Resume', backref=db.backref('adaptations', lazy=True))
 
@@ -213,6 +213,8 @@ def delete_resume(resume_id):
 
 from PyPDF2 import PdfReader
 
+from PyPDF2 import PdfReader
+
 def extract_all_sections(pdf_path):
     reader = PdfReader(pdf_path)
     text = ""
@@ -230,8 +232,12 @@ def extract_all_sections(pdf_path):
         "Languages": "",
         "Skills": ""
     }
-    
+
+    # Extração das seções (exceto Skills) e formatação
     for section in sections.keys():
+        if section == "Skills":
+            continue  # Pulamos a extração da seção "Skills" por enquanto
+        
         start_idx = text.lower().find(section.lower())
         next_section_idx = min(
             [text.lower().find(sec.lower(), start_idx + 1) for sec in sections.keys() if text.lower().find(sec.lower(), start_idx + 1) > -1] + [len(text)]
@@ -239,67 +245,51 @@ def extract_all_sections(pdf_path):
         if start_idx != -1:
             content = text[start_idx:next_section_idx].strip()
             content = content[len(section):].strip()  # Remove o título da seção
-            
+
             # Formatação específica para a seção de Educação
             if section == "Education":
-                content = content.replace("Degree", "Degree\n")
-                lines = content.split('\n')
-                formatted_content = []
-                for i in range(0, len(lines), 2):
-                    if i + 1 < len(lines):
-                        # Combina o nome da faculdade e o curso em uma linha formatada
-                        formatted_line = f"{lines[i].strip():<40} {lines[i+1].strip()}"
-                        formatted_content.append(formatted_line)
-                    else:
-                        # Adiciona linha sem par se houver
-                        formatted_content.append(lines[i].strip())
-                content = '\n'.join(formatted_content)
+                # Adiciona uma quebra de linha apenas uma vez após "Degree" e remove quebras de linha extras
+                content = content.replace("Degree ", "Degree\n").replace("\n\n", "\n").strip()
 
             # Formatação para a seção de Idiomas
             elif section == "Languages":
                 for fluency in ["Native", "Fluent", "Advanced", "Intermediate", "Basic"]:
                     content = content.replace(fluency, f"{fluency}\n")
-                    
-            # Formatação específica para a seção de Education
-            if section == "Education":
-                # Adiciona uma quebra de linha apenas uma vez após "Degree" e remove quebras de linha extras
-                content = content.replace("Degree ", "Degree\n").replace("\n\n", "\n").strip()
-            
-        elif section == "Skills":
-    # Procura pelo início da seção "Skills" de forma insensível a maiúsculas/minúsculas
-            skills_start = content.lower().find("skills")
-            if skills_start != -1:
-        # Captura tudo a partir de "Skills" até o final do texto
-                skills_content = content[skills_start:].strip()
 
-        # Separa as categorias por linhas e remove espaços extras
-                formatted_skills = []
-                for line in skills_content.splitlines():
-                    line = line.strip()
-                    if line and ":" in line:  # Verifica se a linha contém uma categoria
-                        category, skills = line.split(":", 1)
-                # Formata: Categoria em negrito e habilidades separadas por vírgulas
-                    formatted_skills.append(f"{category.strip()}: {skills.strip()}")
+            sections[section] = content.strip()
 
-        # Junta as categorias formatadas com quebras de linha
-            content = '\n'.join(formatted_skills)
+# Captura da seção "Skills" (última seção)
+        skills_start = text.lower().find("skills")
+        if skills_start != -1:
+    # Encontra o início da seção "Skills", mas sem a palavra "Skills" na captura
+            skills_content = text[skills_start:].strip()
+    
+    # Remove a palavra "Skills" (e o possível espaço após ela)
+            skills_content = skills_content.replace("Skills", "").strip()
+    
+    # Atribui o conteúdo da seção "Skills" sem a palavra "Skills"
+            sections["Skills"] = skills_content
 
-
-            
-        sections[section] = content.strip()
 
     return sections
 
 
-
+import re
 
 def extract_personal_info(text):
     # Regex para capturar o nome e informações pessoais
     name_pattern = r"^([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3})"
-    email_pattern = r"([\w\.-]+@[\w\.-]+)"
+    email_pattern = r"([\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,})"
     phone_pattern = r"(\+?\d{2}\s*\(?\d{2}\)?\s*\d{4,5}-?\d{4})"
     linkedin_pattern = r"(https?://[^\s]+)"
-    address_pattern = r"([A-Za-zÀ-ÿ\s]+,\s*[A-Za-zÀ-ÿ\s]+-\s*[A-Z]{2})"
+    address_pattern = r"(Rua|Rodovia|Avenida|Travessa|Praça|Alameda)\s+.+?-\s*[A-Z]{2}"
+
+    # Limpeza do texto
+    text = text.replace("\n", " ").replace("\r", "").strip()
+
+    # Depuração: verifique o texto completo
+    print("Texto extraído do PDF:")
+    print(text)
 
     # Usando a regex para capturar informações
     name = re.search(name_pattern, text, re.MULTILINE)
@@ -308,13 +298,18 @@ def extract_personal_info(text):
     linkedin = re.search(linkedin_pattern, text)
     address = re.search(address_pattern, text)
 
+    # Depuração: cheque o que foi encontrado
+    if address:
+        print("Endereço capturado:", address.group(0))
+    else:
+        print("Padrão de endereço não encontrado!")
+
     # Processando o nome para garantir que tenha espaços entre as partes
     full_name = name.group(1).strip() if name else "Nome não encontrado"
     full_name = ' '.join(full_name.split())
 
-    # Processando o endereço para remover "Brazil" e garantir espaços
-    full_address = address.group(0).replace("Brazil", "").strip() if address else "Endereço não encontrado"
-    full_address = ' '.join(full_address.split())
+    # Processando o endereço para garantir espaços
+    full_address = address.group(0).strip() if address else "Endereço não encontrado"
 
     return {
         "name": full_name,
@@ -326,68 +321,83 @@ def extract_personal_info(text):
 
 
 def add_section(pdf, title, content, title_font_size=13, content_font_size=11, is_bold=False):
-    # Add the title with underline for section headers
+    # Adicionar título com sublinhado para cabeçalhos de seção
     pdf.set_font("Arial", "B" if is_bold else "", size=title_font_size)
-    pdf.cell(0, 8, unidecode(title), ln=True, border="B")  # Underlined title
-    pdf.ln(3)  # Reduced space after the title
+    pdf.cell(0, 8, title, ln=True, border="B")  # Título sublinhado
+    pdf.ln(3)  # Espaço reduzido após o título
 
-    # Set font for content
+    # Configurar fonte para conteúdo
     pdf.set_font("Arial", "", size=content_font_size)
     for paragraph in content.split('\n\n'): 
-        pdf.multi_cell(0, 5, unidecode(paragraph))  # Reduced line spacing
-        pdf.ln(2)  # Reduced space between paragraphs
-        
+        pdf.multi_cell(0, 5, paragraph)  # Espaçamento de linha reduzido
+        pdf.ln(2)  # Espaço reduzido entre os parágrafos
+
 def add_languages_section(pdf, languages_content):
     pdf.set_font("Arial", "B", size=13)
     pdf.cell(0, 8, "LANGUAGES", ln=True, border="B")
-    pdf.ln(3)  # Reduced space after the title
+    pdf.ln(3)  # Espaço reduzido após o título
 
     for line in languages_content.split('\n'):
         if ":" in line:
             language, fluency = line.split(":", 1)
             pdf.set_font("Arial", "B", size=11)
-            pdf.cell(25, 6, f"{language.strip()}:", align="L")  # Reduced cell height
+            pdf.cell(25, 6, f"{language.strip()}:", align="L")  # Reduzindo a altura da célula
             pdf.set_font("Arial", "", size=11)
-            pdf.cell(0, 6, fluency.strip(), ln=True, align="L")  # Fluency on the same line
-        pdf.ln(2)  # Reduced space between lines
-        
+            pdf.cell(0, 6, fluency.strip(), ln=True, align="L")  # Fluência na mesma linha
+        pdf.ln(2)  # Espaço reduzido entre as linhas
+
 def add_professional_experience_section(pdf, experience_content):
     pdf.set_font("Arial", "B", size=13)
     pdf.cell(0, 8, "PROFESSIONAL EXPERIENCE", ln=True, border="B")
-    pdf.ln(3)  # Reduced space after the title
+    pdf.ln(3)  # Espaço reduzido após o título
 
-    previous_line_has_period = False  # Flag to check if the previous line ends with a period
-    first_line_after_date = True  # Flag to ensure the first line after a date has a bullet point
+    previous_line_has_period = False  # Flag para verificar se a linha anterior termina com ponto
+    first_line_after_date = True  # Flag para garantir que a primeira linha após uma data tenha um ponto de bala
 
-    # Path to the bullet point image
-    bullet_image_path = 'C:/inverserecruiter/uploads/bullet.png'  # Replace with the actual path to your .png image
-    bullet_image_width = 4  # Width of the bullet point image
-    bullet_image_height = 4  # Height of the bullet point image
-    offset_x = 6  # Adjust this value to shift the lines without bullet points to the right
+    # Caminho para a imagem do ponto de bala
+    bullet_image_path = 'C:/inverserecruiter/uploads/bullet.png'  # Substitua com o caminho correto
+    bullet_image_width = 4  # Largura da imagem do ponto de bala
+    bullet_image_height = 4  # Altura da imagem do ponto de bala
+    offset_x = 6  # Ajuste esse valor para mover as linhas sem pontos de bala para a direita
 
-    # Divide the content into lines
+    # Divida o conteúdo em linhas
     for line in experience_content.split('\n'):
         line = line.strip()
         if line:
-            if "-" in line and any(char.isdigit() for char in line):  # Detect date lines
-                pdf.set_font("Arial", "B", size=10)
-                pdf.cell(0, 6, line, ln=True)  # Reduced line height for date lines
-                previous_line_has_period = False
-                first_line_after_date = True
-            elif "Brazil" in line or "On-site" in line or "Remote" in line:
-                pdf.set_font("Arial", "B", size=10)
-                pdf.cell(0, 6, line, ln=True)  # Reduced line height for job and location
-                previous_line_has_period = False
-                first_line_after_date = True
+            # Trata a linha com informações de data e empresa na mesma linha
+            if any(char.isdigit() for char in line):  # Detecta se contém alguma data
+                # Encontra a posição do parêntese, onde a data começa
+                parenthesis_pos = line.find('(')
+                if parenthesis_pos != -1:
+                    # Quebra a linha no parêntese (onde começa a data)
+                    line_part1 = line[:parenthesis_pos].strip()
+                    line_part2 = line[parenthesis_pos:].strip()
+                    
+                    # Adiciona a primeira parte (empresa) da linha
+                    pdf.set_font("Arial", "B", size=10)
+                    pdf.cell(0, 6, line_part1, ln=True)
+                    
+                    # Adiciona a segunda parte (data) da linha
+                    pdf.set_font("Arial", "", size=10)
+                    pdf.cell(0, 6, line_part2, ln=True)
+                    
+                    previous_line_has_period = False
+                    first_line_after_date = True
+                else:
+                    # Se não houver parêntese, trata a linha inteira
+                    pdf.set_font("Arial", "B", size=10)
+                    pdf.cell(0, 6, line, ln=True)
+                    previous_line_has_period = False
+                    first_line_after_date = True
             else:
                 pdf.set_font("Arial", "", size=10)
 
-                # If it's the first line after a date, add a bullet point image
+                # Se for a primeira linha após uma data, adicionar um ponto de bala
                 if first_line_after_date:
                     x = pdf.get_x()
                     y = pdf.get_y()
                     pdf.image(bullet_image_path, x=x, y=y, w=bullet_image_width, h=bullet_image_height)
-                    pdf.set_x(x + bullet_image_width + 2)  # Move the cursor to the right of the bullet image
+                    pdf.set_x(x + bullet_image_width + 2)  # Move o cursor para a direita da imagem do ponto de bala
                     pdf.multi_cell(0, 4, line, align='L')
                     first_line_after_date = False
                 else:
@@ -398,46 +408,77 @@ def add_professional_experience_section(pdf, experience_content):
                         pdf.set_x(x + bullet_image_width + 2)
                         pdf.multi_cell(0, 4, line, align='L')
                     else:
-                        # Line without bullet point, move to the right
+                        # Linha sem ponto de bala, mover para a direita
                         pdf.set_x(pdf.get_x() + offset_x)
                         pdf.multi_cell(0, 4, line, align='L')
                         pdf.set_x(pdf.get_x() - offset_x)
 
                 previous_line_has_period = line.endswith(".")
 
-        pdf.ln(2)  # Reduced space between experience entries
+        pdf.ln(2)  # Espaço reduzido entre as entradas de experiência
 
 
 
 def add_education_section(pdf, education_content):
-    # Custom function to format the Education section with institution and degree in bold
+    # Função personalizada para formatar a seção de Educação com instituição e grau em negrito
     pdf.set_font("Arial", "B", size=13)
     pdf.cell(0, 8, "EDUCATION", ln=True, border="B")
-    pdf.ln(3)  # Reduced space after the title
+    pdf.ln(3)  # Espaço reduzido após o título
 
     for line in education_content.split('\n'):
+        # Verifica se há uma linha com a palavra "Degree" para separar instituição e grau
         if "Degree" in line:
-            institution, degree = line.split("Degree", 1)
-            pdf.set_font("Arial", "B", size=11)
-            pdf.cell(0, 6, f"{institution.strip()} Degree", ln=True)  # Reduced line height
-            pdf.set_font("Arial", "", size=11)
-            pdf.multi_cell(0, 6, degree.strip())  # Reduced line height for degree content
+            parts = line.split("Degree", 1)  # Divide a linha antes e depois da palavra "Degree"
+            if len(parts) > 1:
+                institution = parts[0].strip()
+                degree = parts[1].strip()
+                pdf.set_font("Arial", "B", size=11)
+                pdf.cell(0, 6, f"{institution} - Degree", ln=True)  # Linha com o nome da instituição em negrito
+                pdf.set_font("Arial", "", size=11)
+                pdf.multi_cell(0, 6, degree)  # Linha com o grau de estudo
         else:
-            pdf.multi_cell(0, 6, line)  # Reduced line height for other lines
-        pdf.ln(1)  # Reduced space between education entries
-     
-        
+            pdf.multi_cell(0, 6, line)  # Linha sem "Degree" trata-se apenas de uma linha de educação
+        pdf.ln(1)  # Espaço reduzido entre as entradas de educação
+
 def add_skills_section(pdf, skills_content):
-    # Custom function to format the Skills section with skills in bold
+    # Título da seção "Skills"
     pdf.set_font("Arial", "B", size=13)
     pdf.cell(0, 8, "SKILLS", ln=True, border="B")
-    pdf.ln(3)  # Reduced space after the title
+    pdf.ln(3)  # Espaço após o título
 
-    for skill in skills_content.split('\n'):
-        pdf.set_font("Arial", "B", size=11)
-        pdf.multi_cell(0, 6, unidecode(skill.strip()))  # Reduced line height
-    pdf.ln(2)  # Reduced space between skill entries
-     
+    # Corpo da seção "Skills"
+    pdf.set_font("Arial", size=11)
+
+    # Verifica se a variável skills_content contém conteúdo
+    if skills_content:
+        # Dividimos o conteúdo das habilidades em linhas
+        lines = skills_content.split("\n")
+        
+        for line in lines:
+            if ":" in line:
+                # Se houver ":", dividimos a linha em título e conteúdo
+                title, content = line.split(":", 1)
+                
+                # Adiciona o título em negrito
+                pdf.set_font("Arial", "B", size=11)
+                pdf.cell(0, 6, f"{title.strip()}:", ln=True)
+                
+                # Quebra de linha após o título
+                pdf.ln(2)
+                
+                # Adiciona o conteúdo abaixo, em formato normal
+                pdf.set_font("Arial", size=11)
+                pdf.multi_cell(0, 6, content.strip(), align='L')
+                
+                # Quebra de linha entre categorias
+                pdf.ln(2)
+            else:
+                # Se não houver ":", adicionamos a linha normalmente
+                pdf.multi_cell(0, 6, line.strip(), align='L')
+                
+        # Espaço após a seção de skills
+        pdf.ln(2)
+    
 @app.route('/adapt_resume/<string:resume_name>', methods=['GET', 'POST'])
 @login_required
 def adapt_resume_by_name(resume_name):
@@ -445,8 +486,8 @@ def adapt_resume_by_name(resume_name):
     resume = Resume.query.filter_by(name=resume_name, user_id=current_user.id).first_or_404()
 
     if request.method == 'POST':
-        job_description = request.form['job_description']
         company_name = request.form['company_name']
+        job_description = request.form['job_description']
 
         # Atualizar as informações
         resume.job_description = job_description
@@ -455,6 +496,7 @@ def adapt_resume_by_name(resume_name):
 
         # Extrair as seções do currículo original (do arquivo PDF)
         sections = extract_all_sections(os.path.join(app.config['UPLOAD_FOLDER'], resume.filename))
+        print("Skills section content:", repr(sections["Skills"]))  # Verificar a seção de Skills extraída
 
         # Extrair o texto completo do PDF
         pdf_text = ""
@@ -472,21 +514,20 @@ def adapt_resume_by_name(resume_name):
             f"{job_description}\n\n"
             f"You are allowed to change the order of the experiences to have the most relevant first, "
             f"remove items that don't add to the role, and add experiences that are already there. "
-            f"Let me know what is missing and what you have removed (if you did). "
             f"Keep in mind that for my current role the bullets need to start with present continuous, "
             f"and the past ones with past perfect. "
             f"Please don't write any comments or anything else, just the sections of the tailored resume. "
-            f"Use the other sections provided below and integrate them into the adapted resume.\n\n"
-            f"Professional Experience\n{sections['Professional Experience']}\n\n"
-            f"Output format: Please return two distinct sections in your response:\n"
-            f"1. The tailored experience for the job (adapted experience).\n"
-            f"2. The missing information for the role (what is missing in my resume for this job).\n\n"
-            f"Please make sure that these two sections are clearly separated."
+            f"Please do not use asterisks, or hyphens in any way, neither bullet points, just words and periods, and also do not write anything more than what is asked"
+            f"\n{sections['Professional Experience']}\n\n"
+            #f"Output format: Please return two distinct sections in your response:\n"
+            #f"1. The tailored experience for the job (adapted experience).\n"
+            #f"2. The missing information for the role (what is missing in my resume for this job).\n\n"
+            #f"Please make sure that these two sections are clearly separated."
         )
 
         # Chamada à API do ChatGPT
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[{"role": "system", "content": "You are a resume adaptation assistant."},
                       {"role": "user", "content": prompt_script}],
             max_tokens=1500,
@@ -495,25 +536,29 @@ def adapt_resume_by_name(resume_name):
 
         # Extrair o conteúdo adaptado da resposta da API
         adapted_content = response['choices'][0]['message']['content']
+        
+        # Remover ou substituir o caractere '\u2022' (ponto de bala)
+        adapted_content = adapted_content.replace('\u2022', '')
+
+        # Inicializar as variáveis com valores padrão
+        adapted_experience = adapted_content
+        #missing_info = "Error: Could not parse the missing information."
 
         # Usar expressões regulares para separar as duas partes da resposta
-        pattern = r"1\. The tailored experience for the job \(adapted experience\)\.(.*?)2\. The missing information for the role \(what is missing in my resume for this job\)\.(.*)"
-        match = re.search(pattern, adapted_content, re.DOTALL)
+        #pattern = r"1\. The tailored experience for the job \(adapted experience\)\.(.*?)(2\. The missing information for the role \(what is missing in my resume for this job\)\.)"
+        #match = re.search(pattern, adapted_content, re.DOTALL)
 
-        if match:
-            adapted_experience = match.group(1).strip()
-            missing_info = match.group(2).strip()
+        #if match:
+            #adapted_experience = match.group(1).strip()
+            #missing_info = match.group(2).strip()
 
-            # Salvar as partes adaptadas na sessão
-            session['adapted_experience'] = adapted_experience
-            session['missing_info'] = missing_info
-        else:
-            session['adapted_experience'] = "Error: Could not parse the adapted experience."
-            session['missing_info'] = "Error: Could not parse the missing information."
+        # Salvar as partes adaptadas na sessão
+        session['adapted_experience'] = adapted_experience
+        #session['missing_info'] = missing_info
 
         # Criar o PDF com as seções formatadas
-        adapted_filename = f"adapted_resume_{resume.id}_{current_user.id}.pdf"
-        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], adapted_filename)
+        ResumeAdaptation.adapted_filename = f"adapted_resume_{resume.id}_{current_user.id}.pdf"
+        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], ResumeAdaptation.adapted_filename)
 
         # Criando o PDF
         pdf = FPDF()
@@ -536,7 +581,7 @@ def adapt_resume_by_name(resume_name):
         pdf.set_text_color(0, 0, 0)
         pdf.ln(6)
 
-        pdf.cell(0, 8, unidecode(f"Brazil {personal_info['address']}"), ln=True)
+        pdf.cell(0, 8, unidecode(f"Brazil | {personal_info['address']}"), ln=True)
         pdf.ln(2)
 
         # Adicionar seções formatadas
@@ -555,16 +600,15 @@ def adapt_resume_by_name(resume_name):
             job_description=job_description,
             company_name=company_name,
             adapted_experience=adapted_experience,
-            missing_info=missing_info,
-            adapted_filename=adapted_filename
+            #missing_info=missing_info,
+            adapted_filename = ResumeAdaptation.adapted_filename,
         )
         db.session.add(adaptation)
         db.session.commit()
         
-        # Redirecionar para a página de preview
         return redirect(url_for('preview_resume', adaptation_id=adaptation.id))
 
-    # Para requisições GET, redirecionar para a dashboard
+    flash(f"Resume '{resume_name}' adapted successfully!")
     return redirect(url_for('dashboard'))
 
 
@@ -573,38 +617,38 @@ def adapt_resume_by_name(resume_name):
 def download_adapted_resume(resume_id):
     # Obtém o objeto Resume do banco de dados
     resume = Resume.query.get_or_404(resume_id)
-    if not resume.adapted_filename:
+    if not ResumeAdaptation.adapted_filename:
         flash("No adapted resume found.")
         return redirect(url_for('dashboard'))
 
     # Caminho do arquivo PDF gerado na função adapt_resume
-    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], resume.adapted_filename)
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], ResumeAdaptation.adapted_filename)
 
     # Verifica se o arquivo existe antes de enviar
     if not os.path.exists(pdf_path):
         flash("Adapted resume file not found.")
         return redirect(url_for('dashboard'))
 
-    return send_from_directory(app.config['UPLOAD_FOLDER'], resume.adapted_filename, as_attachment=True)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], ResumeAdaptation.adapted_filename, as_attachment=True)
 
 @app.route('/download_adapted_resume_dashboard/<int:resume_id>', methods=['GET'])
 @login_required
 def download_adapted_resume_dashboard(resume_id):
     # Obtém o objeto Resume do banco de dados
     resume = Resume.query.get_or_404(resume_id)
-    if not resume.adapted_filename:
+    if not ResumeAdaptation.adapted_filename:
         flash("No adapted resume available for download.")
         return redirect(url_for('dashboard'))
 
     # Caminho do arquivo PDF gerado na função adapt_resume
-    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], resume.adapted_filename)
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], ResumeAdaptation.adapted_filename)
 
     # Verifica se o arquivo existe antes de enviar
     if not os.path.exists(pdf_path):
         flash("Adapted resume file not found.")
         return redirect(url_for('dashboard'))
 
-    return send_from_directory(app.config['UPLOAD_FOLDER'], resume.adapted_filename, as_attachment=True)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], ResumeAdaptation.adapted_filename, as_attachment=True)
 
 @app.route('/view_resumes', methods=['GET'])
 @login_required
@@ -636,8 +680,22 @@ def preview_resume(adaptation_id):
         flash("Você não tem permissão para visualizar esta adaptação.")
         return redirect(url_for('dashboard'))
 
-    return render_template('preview_resume.html', adaptation=adaptation)
+    # Extrair o conteúdo adaptado da adaptação (que já foi salvo no banco de dados)
+    adapted_experience = adaptation.adapted_experience  # A variável já está armazenada em ResumeAdaptation
 
+    return render_template('preview_resume.html', adapted_experience=adapted_experience, adaptation=adaptation)
+
+@app.route('/download_model_resume')
+def download_model_resume():
+    # Caminho para o arquivo do currículo modelo
+    model_resume_path = os.path.join(app.root_path, 'static', 'modelresume.pdf')
+    
+    # Verifica se o arquivo existe e, em caso afirmativo, serve o arquivo
+    if os.path.exists(model_resume_path):
+        return send_from_directory(os.path.dirname(model_resume_path), os.path.basename(model_resume_path), as_attachment=True)
+    else:
+        # Se o arquivo não for encontrado, exibe uma mensagem de erro
+        return "Model resume not found", 404
 
 
 if __name__ == '__main__':

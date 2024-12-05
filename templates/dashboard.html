@@ -7,6 +7,10 @@
 </head>
 <body>
     <h1>Welcome, {{ current_user.username }}!</h1>
+    <!-- Botão para Download do Currículo Modelo -->
+<div class="download-template">
+    <a href="{{ url_for('download_model_resume') }}" class="btn">Download Model Resume</a>
+</div>
 
     <!-- Container para dividir a página em duas colunas -->
     <div class="container">
@@ -24,52 +28,46 @@
                     <button type="submit" class="btn">Submit Resume</button>
                 </form>
                 
-            <!-- Lista de currículos do usuário -->
-            {% if resumes %}
-                <ul>
-                    {% for resume in resumes %}
-                        <li>
-                            <strong>{{ resume.name }}</strong> - Submitted on {{ resume.upload_date.strftime('%d/%m/%Y') }}
-                            <br>
-                            <a class="btn" href="{{ url_for('download_resume', resume_id=resume.id) }}">Download</a> |
-                            <a class="btn" href="{{ url_for('edit_resume', resume_id=resume.id) }}">Edit</a> |
-                            <form action="{{ url_for('delete_resume', resume_id=resume.id) }}" method="POST" style="display:inline;">
-                                <button type="submit" class="btn" onclick="return confirm('Are you sure you want to delete this resume?')">Delete</button>
-                            </form>
-
-                            <!-- Botão para visualizar informações faltantes, aparece apenas se o currículo foi adaptado -->
-                            {% if resume.adapted_content and resume.adapted_content.strip() %}
-                                <a class="btn" href="{{ url_for('show_missing_info', resume_id=resume.id) }}">View Missing Information</a>
-                            {% else %}
-                                <p>Adapt the resume first to see the missing information.</p>
-                            {% endif %}
-
-                            <!-- Formulário para download do currículo adaptado, aparece apenas se o currículo foi adaptado -->
-                            {% if resume.adapted_filename %}
-                                <a href="{{ url_for('download_adapted_resume', resume_id=resume.id) }}" class="btn">Download Adapted Resume</a>
-                            {% else %}
-                                <p>No adapted resume available. Please adapt the resume first.</p>
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
+<!-- Lista de currículos do usuário -->
+{% if resumes %}
+<ul>
+    {% for resume in resumes %}
+        <li>
+            <strong>{{ resume.name }}</strong> - Submitted on {{ resume.upload_date.strftime('%d/%m/%Y') }}
+            <br>
+            <a class="btn adapt-btn" href="#" data-resume-name="{{ resume.name }}">Adapt This Resume</a> |
+            <a class="btn" href="{{ url_for('download_resume', resume_id=resume.id) }}">Download</a> |
+            <a class="btn" href="{{ url_for('edit_resume', resume_id=resume.id) }}">Edit</a> |
+            <form action="{{ url_for('delete_resume', resume_id=resume.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="btn" onclick="return confirm('Are you sure you want to delete this resume?')">Delete</button>
+            </form>
+            <!-- Botão para visualizar informações faltantes, aparece apenas se o currículo foi adaptado -->
+            {% if resume.adapted_content and resume.adapted_content.strip() %}
+                <a class="btn" href="{{ url_for('show_missing_info', resume_id=resume.id) }}">View Missing Information</a>
             {% else %}
-                <p>No resumes submitted yet.</p>
+                <p>Adapt the resume first to see the missing information.</p>
             {% endif %}
-        </div>
+
+            <!-- Formulário para download do currículo adaptado, aparece apenas se o currículo foi adaptado -->
+            {% if resume.adapted_filename %}
+                <a href="{{ url_for('download_adapted_resume', resume_id=resume.id) }}" class="btn">Download Adapted Resume</a>
+            {% else %}
+                <p>No adapted resume available. Please adapt the resume first.</p>
+            {% endif %}
+        </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>No resumes submitted yet.</p>
+{% endif %}
+</div>
 
 <div class="adapt-resume">
     <h2 class="form-title">Adapt Resume</h2>
 
-    <!-- Formulário para Adaptação -->
-    <form method="POST" action="{{ url_for('adapt_resume_by_name', resume_name='PLACEHOLDER') }}">
-        <label for="resume">Select Resume:</label>
-        <select name="resume_name" id="resume_name" required onchange="updateAction(this.value)">
-            <option value="" disabled selected>Select a resume to adapt</option>
-            {% for resume in resumes %}
-                <option value="{{ resume.name }}">{{ resume.name }}</option>
-            {% endfor %}
-        </select>
+    <form method="POST" action="">
+        <label for="resume">Selected Resume:</label>
+        <input type="text" name="resume_name" id="resume_name" readonly>
         <br><br>
 
         <label for="company_name">Company Name or Job Title:</label>
@@ -85,14 +83,23 @@
 </div>
 
 <script>
-    // Atualiza o atributo "action" do formulário com o nome do currículo selecionado
-    function updateAction(resumeName) {
-        const form = document.querySelector('.adapt-resume form');
-        if (resumeName) {
+    // Adiciona um listener aos botões "Adapt This Resume"
+    document.querySelectorAll('.adapt-btn').forEach(button => {
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            const resumeName = this.getAttribute('data-resume-name');
+
+            // Atualiza o campo de texto no formulário de adaptação
+            const resumeInput = document.getElementById('resume_name');
+            resumeInput.value = resumeName;
+
+            // Atualiza o atributo action do formulário com o nome do currículo
+            const form = document.querySelector('.adapt-resume form');
             form.action = `{{ url_for('adapt_resume_by_name', resume_name='') }}${resumeName}`;
-        }
-    }
+        });
+    });
 </script>
+
 
     </div>
 

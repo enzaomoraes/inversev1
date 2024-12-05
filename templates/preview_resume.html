@@ -7,10 +7,15 @@
 </head>
 <body>
     <h2 class="title">Adapted Resume Preview</h2>
-    <div class="resume-preview">{{ adapted_resume | safe }}</div>
-    <form action="{{ url_for('download_adapted_resume', resume_id=resume.id) }}" method="POST" class="download-form">
+    <!-- Exibe o conteúdo adaptado vindo do ChatGPT -->
+    <div class="resume-preview">{{ adapted_experience | safe }}</div>
+    
+    <!-- Botão para download -->
+    <form action="{{ url_for('download_adapted_resume', resume_id=adaptation.resume.id) }}" method="POST" class="download-form">
         <button type="submit" class="btn">Download Adapted Resume</button>
     </form>
+    
+    <!-- Link para voltar ao dashboard -->
     <a href="{{ url_for('dashboard') }}" class="back-link">Back to Dashboard</a>
 </body>
 </html>

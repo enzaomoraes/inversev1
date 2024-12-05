@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Currículo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h2>Editar Currículo</h2>
+        <form method="POST">
+            <div class="form-group">
+                <label for="name">Nome do Currículo:</label>
+                <input type="text" id="name" name="name" value="{{ resume.name }}" required>
+            </div>
+            <button type="submit" class="btn">Salvar alterações</button>
+            <a href="{{ url_for('dashboard') }}" class="btn">Cancelar</a>
+        </form>
+    </div>
+</body>
+</html>
